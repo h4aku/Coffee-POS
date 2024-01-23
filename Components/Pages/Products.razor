@@ -1,0 +1,252 @@
+﻿@page "/products"
+@using BisleriumCafe.Components.Layout
+
+<nav class="navbar navbar-light">
+    <h1>Products</h1>
+    <button class="btn btn-success" type="button" @onclick="OpenAddProductDialog">
+        <span class="oi oi-plus"></span> Add
+    </button>
+</nav>
+<!-- Display the table of products -->
+<table class="table table-bordered table-hover">
+    <thead style="background-color: #f0f0f0;">
+        <tr>
+            <th scope="col">Product Name</th>
+            <th scope="col">Price</th>
+            <th scope="col">Type</th>
+            <th scope="col" style="width: 200px;">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- Loop through each product and display its details -->
+        @foreach (var product in _products)
+        {
+            <tr>
+                <td>@product.ProductName</td>
+                <td>@product.ProductPrice</td>
+                <td>@product.ProductType</td>
+                <td>
+                    <!-- Buttons for deleting and editing a product -->
+                    <button class="btn btn-sm btn-outline-danger" @onclick="()=>OpenDeleteProductDialog(product)">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" @onclick="()=>OpenEditProductDialog(product)">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Modal dialog for adding a new product -->
+@if (_showAddProductDialog)
+{
+    <ModalDialog Title="Add Product" OnClose="@OnAddItemDialogClose" OkLabel="Add">
+        <form>
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control username" @bind="_productName" placeholder="Item Name" />
+                <label for="floatingInput">Item Name</label>
+            </div>
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control password" @bind="_price" placeholder="Price" />
+                <label for="floatingPassword">Price</label>
+            </div>
+            <div class="form-check">
+                <input id="userRole" type="radio" class="form-check-input" name="role" value="@ProductType.Coffee"
+                       @onchange="ProductTypeChangeHandler" checked="@(_type == ProductType.Coffee)">
+                <label class="form-check-label">@ProductType.Coffee</label>
+            </div>
+            <div class="form-check">
+                <input id="adminRole" type="radio" class="form-check-input" name="role" value="@ProductType.Addins"
+                       @onchange="ProductTypeChangeHandler" checked="@(_type == ProductType.Addins)">
+                <label class="form-check-label">@ProductType.Addins</label>
+            </div>
+            <!-- Display error message if there is any -->
+            @if (!string.IsNullOrEmpty(_addProductErrorMessage))
+            {
+                <AlertMessage Type="danger" Message="@_addProductErrorMessage" />
+            }
+        </form>
+    </ModalDialog>
+}
+
+<!-- Modal dialog for deleting a product -->
+@if (_showDeleteProductDialog)
+{
+    <ModalDialog Title="Delete Product" OnClose="@OnDeleteProductDialogClose" OkLabel="Confirm">
+        <p>Are you sure you want to delete <strong>@_deleteProduct.ProductName</strong>?</p>
+        <!-- Display error message if there is any -->
+        @if (!string.IsNullOrEmpty(_deleteProductErrorMessage))
+        {
+            <AlertMessage Type="danger" Message="@_deleteProductErrorMessage" />
+        }
+    </ModalDialog>
+}
+
+<!-- Modal dialog for editing a product's price -->
+@if (_showEditPriceDialog)
+{
+    <ModalDialog Title="Edit Price" OnClose="@OnEditProductDialogClose" OkLabel="Confirm">
+        <form>
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control username" @bind="_editProduct.ProductName" placeholder="Item Name" />
+                <label for="floatingInput">Item Name</label>
+            </div>
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control password" @bind="_editProduct.ProductPrice" placeholder="Price" />
+                <label for="floatingInput">Price</label>
+            </div>
+            <!-- Display error message if there is any -->
+            @if (!string.IsNullOrEmpty(_editPriceErrorMessage))
+            {
+                <AlertMessage Type="danger" Message="@_editPriceErrorMessage" />
+            }
+        </form>
+    </ModalDialog>
+}
+
+@code {
+    [CascadingParameter]
+    private GlobalState _globalState { get; set; }
+    private List<Product> _products { get; set; }
+
+    private bool _showAddProductDialog { get; set; }
+    private bool _showDeleteProductDialog { get; set; }
+    private bool _showEditPriceDialog { get; set; }
+
+    private string _addProductErrorMessage { get; set; }
+    private string _deleteProductErrorMessage { get; set; }
+    private string _editPriceErrorMessage { get; set; }
+
+    private Product _deleteProduct { get; set; }
+    private Product _editProduct { get; set; }
+
+    private string _productName { get; set; }
+    private float _price { get; set; }
+    private ProductType _type { get; set; }
+
+    protected override void OnInitialized()
+    {
+        // Get the product information from the ProductService and assign it to the _products list
+        _products = ProductService.GetProductInfo();
+    }
+
+    // Open the add product dialog
+    private void OpenAddProductDialog()
+    {
+        // Set the flag to show the add product dialog
+        _showAddProductDialog = true;
+        // Clear the product name and price fields
+        _productName = "";
+        _price = 0.0f;
+    }
+
+    // Open the edit product dialog for the specified product
+    private void OpenEditProductDialog(Product product)
+    {
+        // Set the product to be edited and show the edit product dialog
+        _editProduct = product;
+        _showEditPriceDialog = true;
+    }
+
+    // Handle the close event of the edit product dialog
+    private void OnEditProductDialogClose(bool isCancel)
+    {
+        if (isCancel)
+        {
+            // If the dialog is cancelled, hide the edit product dialog and reset the product prices
+            _showEditPriceDialog = false;
+            _products = ProductService.GetProductInfo();
+            foreach (var product in _products)
+            {
+                _editProduct.ProductPrice = product.ProductPrice;
+            }
+        }
+        else
+        {
+            try
+            {
+                _editPriceErrorMessage = "";
+                // Update the product price using the ProductService
+                ProductService.UpdateProductPrice(_editProduct.ProductName, _editProduct.ProductPrice);
+                // Hide the edit product dialog
+                _showEditPriceDialog = false;
+            }
+            catch (Exception e)
+            {
+                // If an exception occurs, set the error message to be displayed
+                _editPriceErrorMessage = e.Message;
+            }
+        }
+    }
+
+    // Handle the change event of the product type selection
+    private void ProductTypeChangeHandler(ChangeEventArgs e)
+    {
+        // Convert the selected product type from the event arguments to the ProductType enum and assign it to _type
+        _type = (ProductType)Enum.Parse(typeof(ProductType), e.Value.ToString());
+    }
+
+    // Handle the close event of the add product dialog
+    private void OnAddItemDialogClose(bool isCancel)
+    {
+        if (isCancel)
+        {
+            // If the dialog is cancelled, hide the add product dialog
+            _showAddProductDialog = false;
+        }
+        else
+        {
+            try
+            {
+                _addProductErrorMessage = "";
+                // Create a new product using the ProductService and assign the updated product list to _products
+                _products = ProductService.CreateNewProduct(_productName, _price, _type);
+                // Hide the add product dialog
+                _showAddProductDialog = false;
+            }
+            catch (Exception e)
+            {
+                // If an exception occurs, set the error message to be displayed
+                _addProductErrorMessage = e.Message;
+            }
+        }
+    }
+
+    // Open the delete product dialog for the specified product
+    private void OpenDeleteProductDialog(Product product)
+    {
+        // Set the product to be deleted and show the delete product dialog
+        _deleteProduct = product;
+        _showDeleteProductDialog = true;
+    }
+
+    // Handle the close event of the delete product dialog
+    private void OnDeleteProductDialogClose(bool isCancel)
+    {
+        if (isCancel)
+        {
+            // If the dialog is cancelled, hide the delete product dialog and clear the _deleteProduct variable
+            _showDeleteProductDialog = false;
+            _deleteProduct = null;
+        }
+        else
+        {
+            try
+            {
+                _deleteProductErrorMessage = "";
+                // Delete the selected product using the ProductService and assign the updated product list to _products
+                _products = ProductService.DeleteExistingProduct(_deleteProduct.ProductName);
+                // Hide the delete product dialog and clear the _deleteProduct variable
+                _showDeleteProductDialog = false;
+                _deleteProduct = null;
+            }
+            catch (Exception e)
+            {
+                // If an exception occurs, set the error message to be displayed
+                _deleteProductErrorMessage = e.Message;
+            }
+        }
+    }
+}

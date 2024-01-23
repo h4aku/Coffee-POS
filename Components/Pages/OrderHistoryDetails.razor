@@ -1,0 +1,58 @@
+﻿@page "/orderHistoryDetails"
+@using BisleriumCafe.Data
+
+<h1>Order Details</h1>
+
+@if (orders != null && orders.Any())
+{
+    <table class="table table-bordered table-hover">
+        <!-- Table headers for the Order History page -->
+        <thead style="background-color: #f0f0f0;">
+            <tr>
+                <th>S.N.</th>
+                <th>Member ID</th>
+                <th>Products</th>
+                <th>Date of Sales</th>
+                <th>Grand Total</th>
+            </tr> 
+        </thead>
+        <tbody>
+            @{
+                int counter = 1; 
+            }
+            <!-- Loop for showing the orders of all users -->
+            @foreach (var order in orders)
+            {
+                <tr>
+                    <td>@counter</td>
+                    <td>@order.MemberID</td>
+                    <td>
+                        @foreach (var product in order.Products)
+                        {
+                            <span>- @product.ProductName</span>
+                            <br />
+                        }
+                    </td>
+
+                    <td>@order.DateOfSale.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td>@order.TotalPrice</td>
+                </tr>
+                counter++;
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>No orders available.</p>
+}
+
+@code {
+    List<Data.Order> orders;
+
+    protected override void OnInitialized()
+    {
+        // Call the GetOrderDetails method from your OrderService to fetch the orders
+        orders = OrderService.GetOrderDetails();
+    }
+}

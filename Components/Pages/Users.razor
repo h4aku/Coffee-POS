@@ -1,0 +1,191 @@
+﻿@page "/users"
+@using BisleriumCafe.Components.Layout
+
+<!-- Navbar on the side -->
+<nav class="navbar navbar-light">
+    <h1>User List</h1>
+
+    <button class="btn btn-success" type="button" @onclick="OpenAddUserDialog">
+        <span class="oi oi-plus"></span> Add
+    </button>
+</nav>
+
+<!-- Table for created users -->
+<table class="table table-bordered table-hover">
+    <thead style="background-color: #f0f0f0;">
+        <tr>
+            <th scope="col">Username</th>
+            <th scope="col">Role</th>
+            <th scope="col" style="width: 200px;">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- Loop for adding users in row -->
+        @foreach (var user in _users)
+        {
+            <tr>
+                <td>@user.Username</td>
+                <td>@user.Role.ToString()</td>
+                <td>
+                    <button disabled="@(_globalState?.ActiveUser != null ? _globalState.ActiveUser.UserID == user.UserID : false)"
+                            class="btn btn-sm btn-outline-danger" @onclick="()=>OpenDeleteUserDialog(user)">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Adding user dialog box with inputs -->
+@if (_showAddUserDialog)
+{
+    <ModalDialog Title="Add Users" OnClose="@OnAddUserDialogClose" OkLabel="Add">
+        <form>
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control username" @bind="_username" placeholder="Username" />
+                <label for="floatingInput">Username</label>
+            </div>
+
+            <div class="form-floating mb-3">
+                <input type="password" class="form-control password" @bind="_password" placeholder="Password" />
+                <label for="floatingPassword">Password</label>
+            </div>
+
+            <div class="form-check">
+                <input id="userRole" type="radio" class="form-check-input" name="role" value="@Role.Staff"
+                       @onchange="RoleChangeHandler" checked="@(_role == Role.Staff)">
+                <label class="form-check-label" for="userRole">@Role.Staff</label>
+            </div>
+
+            <div class="form-check">
+                <input id="adminRole" type="radio" class="form-check-input" name="role" value="@Role.Admin"
+                       @onchange="RoleChangeHandler" checked="@(_role == Role.Admin)">
+                <label class="form-check-label" for="adminRole">@Role.Admin</label>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_addUserErrorMessage))
+            {
+                <AlertMessage Type="danger" Message="@_addUserErrorMessage" />
+            }
+        </form>
+    </ModalDialog>
+}
+
+<!-- Deleting user dialog box with inputs -->
+@if (_showDeleteUserDialog)
+{
+    <ModalDialog Title="Delete User" OnClose="@OnDeleteUserDialogClose" OkLabel="Confirm">
+        <p>Are you sure you want to delete <strong>@_deleteUser.Username</strong>?</p>
+        @if (!string.IsNullOrEmpty(_deleteUserErrorMessage))
+        {
+            <AlertMessage Type="danger" Message="@_deleteUserErrorMessage" />
+        }
+    </ModalDialog>
+}
+
+@code {
+    [CascadingParameter]
+    private GlobalState _globalState { get; set; }
+    private List<Data.User> _users { get; set; }
+    private User _deleteUser { get; set; }
+
+    private bool _showAddUserDialog { get; set; }
+    private string _addUserErrorMessage { get; set; }
+    private bool _showDeleteUserDialog { get; set; }
+    private string _deleteUserErrorMessage { get; set; }
+
+    private string _username { get; set; }
+    private string _password { get; set; }
+    private Role _role { get; set; }
+
+    protected override void OnInitialized()
+    {
+        // Get the user information from the UserService and assign it to the _users list
+        _users = UserService.GetUserInfo();
+    }
+
+    // Open the add user dialog
+    private void OpenAddUserDialog()
+    {
+        // Set the flag to show the add user dialog
+        _showAddUserDialog = true;
+
+        // Clear the username and password fields and set the role to Staff
+        _username = "";
+        _password = "";
+        _role = Role.Staff;
+    }
+
+    // Handle the close event of the add user dialog
+    private void OnAddUserDialogClose(bool isCancel)
+    {
+        if (isCancel)
+        {
+            // If the dialog is cancelled, hide the add user dialog
+            _showAddUserDialog = false;
+        }
+        else
+        {
+            try
+            {
+                _addUserErrorMessage = "";
+                // Create a new user using the UserService and assign the updated user list to _users
+                _users = UserService.CreateNewUser(_globalState.ActiveUser.UserID, _username, _password, _role);
+
+                // Hide the add user dialog
+                _showAddUserDialog = false;
+            }
+            catch (Exception e)
+            {
+                // If an exception occurs, set the error message to be displayed
+                _addUserErrorMessage = e.Message;
+            }
+        }
+    }
+
+    // Handle the change event of the role selection
+    private void RoleChangeHandler(ChangeEventArgs e)
+    {
+        // Convert the selected role from the event arguments to the Role enum and assign it to _role
+        _role = (Role)Enum.Parse(typeof(Role), e.Value.ToString());
+    }
+
+    // Open the delete user dialog for the specified user
+    private void OpenDeleteUserDialog(User user)
+    {
+        // Set the user to be deleted and show the delete user dialog
+        _deleteUser = user;
+        _showDeleteUserDialog = true;
+    }
+
+    // Handle the close event of the delete user dialog
+    private void OnDeleteUserDialogClose(bool isCancel)
+    {
+        if (isCancel)
+        {
+            // If the dialog is cancelled, hide the delete user dialog and clear the _deleteUser variable
+            _showDeleteUserDialog = false;
+            _deleteUser = null;
+        }
+        else
+        {
+            try
+            {
+                _deleteUserErrorMessage = "";
+
+                // Delete the selected user using the UserService and assign the updated user list to _users
+                _users = UserService.DeleteExistingUser(_deleteUser.UserID);
+
+                // Hide the delete user dialog and clear the _deleteUser variable
+                _showDeleteUserDialog = false;
+                _deleteUser = null;
+            }
+            catch (Exception e)
+            {
+                // If an exception occurs, set the error message to be displayed
+                _deleteUserErrorMessage = e.Message;
+            }
+        }
+    }
+}

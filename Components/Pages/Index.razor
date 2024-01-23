@@ -1,0 +1,23 @@
+﻿@page "/"
+<link href="https://cdn.jsdelivr.net/npm/open-iconic@1.1.1/font/css/open-iconic-bootstrap.min.css" rel="stylesheet">
+@inject NavigationManager NavManager
+
+@code {
+    [CascadingParameter]
+    private GlobalState _globalState { get; set; }
+
+    protected override void OnInitialized()
+    {
+        // Check if there is an active user
+        if (_globalState.ActiveUser == null)
+        {
+            // If no active user, navigate to the login page
+            NavManager.NavigateTo("/login");
+        }
+        else
+        {
+            // If there is an active user, stay on the current page
+            NavManager.NavigateTo("/");
+        }
+    }
+}

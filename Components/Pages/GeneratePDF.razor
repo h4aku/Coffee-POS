@@ -1,0 +1,158 @@
+﻿@page "/pdf"
+@using BisleriumCafe.Components.Layout;
+
+<div class="container mt-5">
+    <!-- Section 1: Daily Report -->
+    <div class="row my-3">
+        <div class="col-md-6">
+            <h2>Daily Report</h2>
+            <div class="form-group">
+                <label for="dailyDate">Select Date:</label>
+                <input type="date" class="form-control" id="dailyDate" @bind="day" @onclick="() => { dailyReportGenerated = false; }">
+            </div>
+            <button class="btn btn-success mt-3" @onclick="() => OnGenerateDailyReportClicked()">Generate Daily Report</button>
+        </div>
+    </div>
+
+    @if (dailyReportGenerated)
+    {
+        <AlertMessage Type="success" Message="Report has been generated" />
+    }
+
+    <!-- Section 2: Monthly Report -->
+    <div class="row my-3">
+        <div class="col-md-6">
+            <h2>Monthly Report</h2>
+            <div class="form-group">
+                <label for="monthlyMonth">Select Month:</label>
+                <input type="month" class="form-control" id="monthlyMonth" @bind="month" @onclick="() => { monthlyReportGenerated = false; }">
+            </div>
+            <button class="btn btn-success mt-3" @onclick="() => OnGenerateMonthlyReportClicked()">Generate Monthly Report</button>
+        </div>
+    </div>
+
+    @if (monthlyReportGenerated)
+    {
+        <AlertMessage Type="success" Message="Report Generated!" />
+    }
+</div>
+
+@code {
+    private DateTime day { get; set; } = DateTime.Now;
+    private DateTime month { get; set; } = DateTime.Now;
+    private List<Data.Order> _orders { get; set; }
+
+    private bool dailyReportGenerated { get; set; } = false;
+    private bool monthlyReportGenerated { get; set; } = false;
+
+    public class CoffeeStatistics
+    {
+        public string CoffeeName { get; set; }
+        public int TotalCoffeeQuantitySold { get; set; }
+    }
+
+    public class AddinStatistics
+    {
+        public string AddinsName { get; set; }
+        public int TotalAddinsQuantitySold { get; set; }
+    }
+
+    protected override void OnInitialized()
+    {
+        _orders = OrderService.GetOrderDetails();
+    }
+
+    private float GetTotalSales(List<Data.Order> orders)
+    {
+        float total = 0;
+        foreach (var order in orders)
+        {
+            total = total + order.TotalPrice;
+        }
+
+        return total;
+    }
+
+    private void OnGenerateDailyReportClicked()
+    {
+        dailyReportGenerated = false;
+        List<Data.Order> dayOrders = _orders.Where(order => order.DateOfSale.Date == day.Date).ToList();
+
+        float totalSales = GetTotalSales(dayOrders);
+        List<CoffeeStatistics> topFiveCoffees = GetTopFiveCoffees(dayOrders);
+        List<AddinStatistics> topFiveAddIns = GetTopFiveAddins(dayOrders);
+        var pdfService = new GeneratePDFServices();
+
+        string filePath = Path.Combine(Utils.GetAppDirectory(), $"DailyReport-{day.Day}-{day.Month}-{day.Year}.pdf");
+        try
+        {
+            pdfService.GenerateDailyReport(filePath, day, totalSales, topFiveCoffees, topFiveAddIns);
+            dailyReportGenerated = true;
+
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+
+    private void OnGenerateMonthlyReportClicked()
+    {
+        monthlyReportGenerated = false;
+        List<Data.Order> monthOrders = _orders.Where(order => order.DateOfSale.Month == month.Month).ToList();
+
+        float totalSales = GetTotalSales(monthOrders);
+        List<CoffeeStatistics> topFiveCoffees = GetTopFiveCoffees(monthOrders);
+        List<AddinStatistics> topFiveAddIns = GetTopFiveAddins(monthOrders);
+        var pdfService = new GeneratePDFServices();
+        string filePath = Path.Combine(Utils.GetAppDirectory(), $"MonthlyReport-{day.Day}-{day.Month}-{day.Year}.pdf");
+        try
+        {
+            pdfService.GenerateDailyReport(filePath, month, totalSales, topFiveCoffees, topFiveAddIns);
+            monthlyReportGenerated = true;
+
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+
+
+    private List<CoffeeStatistics> GetTopFiveCoffees(List<Data.Order> orders)
+    {
+        var coffeeStatistics = orders
+            .SelectMany(order => order.Products)
+            .Where(product => product.ProductType == ProductType.Coffee) // Filter for Coffee products
+            .GroupBy(coffee => coffee.ProductName)
+            .Select(group => new CoffeeStatistics
+                {
+                    CoffeeName = group.Key,
+                    TotalCoffeeQuantitySold = group.Sum(coffee => coffee.Quantity) // Sum up the quantities for each coffee product
+                })
+            .OrderByDescending(stat => stat.TotalCoffeeQuantitySold)
+            .Take(5)
+            .ToList();
+
+        return coffeeStatistics;
+    }
+
+
+    private List<AddinStatistics> GetTopFiveAddins(List<Data.Order> orders)
+    {
+        var addinsStatistics = orders
+            .SelectMany(order => order.Products)
+            .Where(product => product.ProductType == ProductType.Addins) // Filter for Addins products
+            .GroupBy(addin => addin.ProductName)
+            .Select(group => new AddinStatistics
+                {
+                    AddinsName = group.Key,
+                    TotalAddinsQuantitySold = group.Sum(addin => addin.Quantity)
+                })
+            .OrderByDescending(stat => stat.TotalAddinsQuantitySold)
+            .Take(5)
+            .ToList();
+
+        return addinsStatistics;
+    }
+}

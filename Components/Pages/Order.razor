@@ -1,0 +1,380 @@
+﻿@page "/order"
+@using BisleriumCafe.Components.Layout
+
+<head>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+</head>
+
+<nav class="navbar navbar-light">
+    <!-- Title for the order page -->
+    <h1>Order</h1>
+</nav>
+
+<div class="main-container">
+    <div class="left-container">
+        <!-- Buttons to filter between different product types -->
+        <div class="filter-buttons">
+            <button class="btn btn-primary" @onclick="() => FilterProduct(ProductType.Coffee)">Products</button>
+            <!-- Disabled button for Add-Ins based on conditions -->
+            <button class="btn btn-primary" @onclick="() => FilterProduct(ProductType.Addins)" disabled="@(!_isProductAdded)">Add-Ins</button>
+        </div>
+
+        <!-- Displaying product cards based on selected filter -->
+        <div class="item-cards">
+            <!-- display each product as cards -->
+            @foreach (var product in filteredProducts)
+            {
+                <div class="card">
+                    <!-- Display icons based on product type -->
+                    @if (product.ProductType == ProductType.Coffee)
+                    {
+                        <i class="fas fa-mug-hot"></i> <!-- Coffee icon -->
+                    }
+                    else if (product.ProductType == ProductType.Addins)
+                    {
+                        <i class="far fa-plus-square"></i> <!-- Addins icon -->
+                    }
+                    <!-- Display product name, price, and add button -->
+                    <div>@product.ProductName</div>
+                    <div>Rs.@product.ProductPrice</div>
+                    <button class="w-100 btn btn-success" @onclick="() => AddToCart(product)">Add</button>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="right-container">
+        <!-- Display selected items -->
+        <h3>Cart</h3>
+        <div class="cart">
+            <!-- Iterate through selected items and display them -->
+            @foreach (var selectedItem in selectedProducts)
+            {
+                <div style="border: 1px solid #ccc; margin-bottom: 10px;">
+                    <!-- Display selected item name, total price, and buttons for quantity control -->
+                    <div class="item-name">@selectedItem.Product.ProductName - Rs.@selectedItem.GetTotalPrice()</div>
+                    <div class="buttons-container">
+                        <button @onclick="() => DecreaseQuantity(selectedItem)" class="g-button">-</button>
+                        @selectedItem.Quantity
+                        <button @onclick="() => IncreaseQuantity(selectedItem)" class="g-button">+</button>
+                        <button @onclick="() => RemoveCartProduct(selectedItem)" class="r-button">X</button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Membership check and order confirmation section -->
+        <div>
+            <h3>Check Membership</h3>
+            <!-- Input for membership ID -->
+            <input type="number" placeholder="Enter membership ID" class="form-control w-100" @bind="_memberID" />
+            <!-- Button to proceed with the order -->
+            <button class="w-100 btn btn-success" style="margin-top: 20px;" @onclick="ConfirmOrder" disabled="@(!_isProductAdded)">Proceed</button>
+        </div>
+
+        <!-- Order confirmation dialog -->
+        @if (_showOrderDialog)
+        {
+            if (!_discountEligible)
+            {
+                <ModalDialog Title="Confirm Order" OnClose="@OnCancelOrderDialog" OkLabel="Confirm">
+                    <!-- Display order details -->
+                    <div class="order-confirmation">
+                        <p>Membership ID: @_memberID</p>
+                        <p>Selected Items:</p>
+                        <ul>
+                            <!-- Iterate through selected items and display details -->
+                            @foreach (var selectedItem in selectedProducts)
+                            {
+                                <span> - @selectedItem.Product.ProductName - Rs.@selectedItem.GetTotalPrice()</span>
+                                <br />
+                            }
+                        </ul>
+                        <!-- Display gross total, discount amount, and net total -->
+                        <p>Gross Total: Rs.@GrossTotalAmount()</p>
+                        <p>Discount Amount: Rs.@DiscountAmount()</p>
+                        <p>Net Total: Rs.@NetTotalAmount()</p>
+                    </div>
+                </ModalDialog>
+            }
+            else
+            {
+                <ModalDialog Title="Confirm Order" OnClose="@RedeemFreeCoffee" OkLabel="Accept">
+                    <!-- Display  -->
+                    <div>
+                        <p>You have a free coffee remaining.</p>
+                    </div>
+                </ModalDialog>
+            }
+        }
+
+        <!-- Success message displayed after order placement -->
+        @if (_showSuccessMessage)
+        {
+            <div style="margin-top: 20px;">
+                <AlertMessage Type="success" Message="Order has been placed successfully!" />
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private long _memberID { get; set; }
+    private bool _showOrderDialog = false;
+    private bool _showSuccessMessage = false;
+    private bool _isProductAdded => selectedProducts.Any();
+    private bool _discountEligible { get; set; }
+
+    private System.Timers.Timer messageTimer;
+
+    List<Product> products = ProductService.GetProductInfo();
+    List<Product> filteredProducts = new List<Product>();
+    List<Cart> selectedProducts = new List<Cart>();
+
+    protected override void OnInitialized()
+    {
+        // Filter the products based on the specified product type
+        FilterProduct(ProductType.Coffee);
+    }
+
+    // Filter the products based on the specified product type
+    void FilterProduct(ProductType productType)
+    {
+        // Update the filteredProducts list with products that match the specified product type
+        filteredProducts = products.Where(i => i.ProductType == productType).ToList();
+    }
+
+    // Add the selected product to the selectedIProducts list
+    void AddToCart(Product cart)
+    {
+        // Check if the selected product already exists in the selectedIProducts list
+        var existingCartProduct = selectedProducts.FirstOrDefault(i => i.Product.ProductName == cart.ProductName);
+
+        if (existingCartProduct != null)
+        {
+            // If the selected product already exists, increase its quantity by 1
+            existingCartProduct.Quantity++;
+        }
+        else
+        {
+            // If the selected product does not exist, create a new SelectedProduct object and add it to the selectedIProducts list
+            var newCartProduct = new Cart
+                {
+                    Product = cart,
+                    Quantity = 1
+                };
+            selectedProducts.Add(newCartProduct);
+        }
+
+        // Update the component's state to reflect the changes
+        StateHasChanged();
+    }
+
+    // Increase the quantity of the selected product by 1
+    void IncreaseQuantity(Cart cart)
+    {
+        cart.Quantity++;
+    }
+
+    // Decrease the quantity of the selected product by 1, if it is greater than 1
+    void DecreaseQuantity(Cart cart)
+    {
+        if (cart.Quantity > 1)
+        {
+            cart.Quantity--;
+        }
+    }
+
+    // Remove the selected product from the selectedIProducts list
+    void RemoveCartProduct(Cart cart)
+    {
+        selectedProducts.Remove(cart);
+        // Update the component's state to reflect the changes
+        StateHasChanged();
+    }
+
+    // Calculate the discount percentage based on the number of transactions made by the user in the last 30 days
+    float GetDiscount()
+    {
+        int transactionCount = OrderService.GetOrderByUserId(_memberID)
+            .Select(transaction => transaction.DateOfSales.Date)
+            .Distinct()
+            .Count(date => (DateTime.Now - date).Days <= 30); //No. of days lessthan equal to 30
+
+        // Apply a discount of 10% if the number of transactions is greater than 22, otherwise apply no discount
+        float discountPercentage = (transactionCount > 22) ? 10 : 0;
+        return discountPercentage;
+    }
+
+
+
+    void ConfirmOrder()
+    {
+        // Check if the membership ID already exists in previous transactions
+        bool isExistingMember = OrderService.GetOrderByUserId(_memberID).Any();
+        List<Member> members = MemberService.GetMemberData();
+        var member = members.FirstOrDefault(x => x.MemberID == _memberID);
+
+        // Check the total count of previous transactions in the past 30 days
+        int transactionCount = OrderService.GetOrderByUserId(_memberID)
+            .Select(transaction => transaction.DateOfSales.Date)
+            .Distinct()
+            .Count(date => (DateTime.Now - date).Days <= 30);
+
+
+        // Check if the transaction count is more than 22, and set the discount percentage accordingly
+        float discountPercentage = (transactionCount > 22) ? 10 : 0;
+
+        // Calculate the net total amount with discount applied
+        float netTotal = NetTotalAmount();
+
+        // Apply the discount to the net total
+        float discountedNetTotal = netTotal * (1 - discountPercentage / 100);
+
+        // Update the net total in the selected items
+        UpdateNetTotalInCart(discountedNetTotal);
+
+        // Show the order dialog
+        _showOrderDialog = true;
+
+        if (member != null)
+        {
+            _discountEligible = member.MonthlyDiscount;
+        }
+
+        UpdateNetTotalInCart(discountedNetTotal);
+    }
+
+    void UpdateNetTotalInCart(float discountedNetTotal)
+    {
+        // Update the net total for each cart item with the discounted net total
+        foreach (var selectedItem in selectedProducts)
+        {
+            selectedItem.NetTotal = discountedNetTotal;
+        }
+    }
+
+    void OnCancelOrderDialog(bool isCancel)
+    {
+        if (isCancel)
+        {
+            // If the order dialog is cancelled, hide the order dialog
+            _showOrderDialog = false;
+        }
+        else
+        {
+            // Create a new Order object with the selected products and other order details
+            var orderData = new Data.Order
+                {
+                    OrderID = Guid.NewGuid(),
+                    Products = selectedProducts.Select<Cart, Product>(cart => new Product
+                    {
+                        ProductName = cart.Product.ProductName,
+                        ProductPrice = cart.Product.ProductPrice,
+                        ProductType = cart.Product.ProductType,
+                        Quantity = cart.Quantity // Assign the quantity from the cart to the product
+                    }).ToList(),
+
+                    MemberID = _memberID,
+                    DateOfSale = DateTime.Now,
+                    TotalPrice = NetTotalAmount(),
+                };
+
+            foreach (var product in orderData.Products)
+            {
+                if (product.ProductType == ProductType.Coffee)
+                {
+                    product.ProductType = ProductType.Coffee;
+                }
+                else if (product.ProductType == ProductType.Addins)
+                {
+                    product.ProductType = ProductType.Addins;
+                }
+            }
+
+            // Get the existing order details from the OrderService
+            List<Data.Order> orders = OrderService.GetOrderDetails();
+
+            // Add the new transaction data to the existing order details
+            orders.Add(orderData);
+
+            // Save the updated order details to the OrderService
+            OrderService.SaveOrderDetails(orders);
+
+            // Calling methods from MemberService to create new member, and update discount and transaction count status
+            MemberService.CreateNewMember(_memberID);
+            MemberService.DiscountStatus(_memberID);
+            MemberService.TransactionCount(_memberID);
+
+
+            // Clear the selected products list and hide the order dialog
+            selectedProducts.Clear();
+            _showOrderDialog = false;
+
+            // Show the success message
+            _showSuccessMessage = true;
+
+            // Start a timer to hide the success message after 2 seconds
+            messageTimer = new System.Timers.Timer(2000); // 2000 milliseconds = 2 seconds
+            messageTimer.Elapsed += HideSuccessMessage;
+            messageTimer.AutoReset = false;
+            messageTimer.Start();
+
+            FilterProduct(ProductType.Coffee);
+        }
+    }
+
+    // Hide the success message and dispose of the timer
+    void HideSuccessMessage(object sender, System.Timers.ElapsedEventArgs e)
+    {
+        _showSuccessMessage = false;
+        messageTimer.Dispose();
+
+        InvokeAsync(() =>
+        {
+            StateHasChanged();
+        });
+    }
+
+    // Calculate the gross total of the selected products
+    float GrossTotalAmount()
+    {
+        return selectedProducts.Sum(cartProducts => cartProducts.GetTotalPrice());
+    }
+
+    // Calculate the discount amount based on the gross total and the discount percentage
+    float DiscountAmount()
+    {
+        return (GetDiscount() / 100) * GrossTotalAmount();
+    }
+
+    // Calculate the net total by subtracting the discount amount from the gross total
+    float NetTotalAmount()
+    {
+        return GrossTotalAmount() - DiscountAmount();
+    }
+
+    void RedeemFreeCoffee()
+    {
+        List<Member> members = MemberService.GetMemberData();
+        Member member = members.FirstOrDefault(x => x.MemberID == _memberID);
+        member.MonthlyDiscount = false;
+        selectedProducts.Clear();
+        _showOrderDialog = false;
+        MemberService.SaveMemberData(members);
+    }
+
+    // Represents a selected product with its quantity and net total
+    public class Cart
+    {
+        public Product Product { get; set; }
+        public int Quantity { get; set; }
+        public float NetTotal { get; set; }
+
+        // Calculate the total price of the selected product based on its quantity
+        public float GetTotalPrice()
+        {
+            return Product.ProductPrice * Quantity;
+        }
+    }
+}

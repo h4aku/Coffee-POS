@@ -1,0 +1,87 @@
+﻿@page "/login"
+@using BisleriumCafe.Components.Layout
+@inject NavigationManager NavManager
+
+<div class="login-body text-center">
+    <div class="form-login d-inline-block">
+        <form class="main-form" @onsubmit="LoginHandler">
+            <img class="mb-4" src="/appicon.png" alt="" height="72">
+            <h1 class="h3 mb-3 fw-normal">Login</h1>
+
+            @if (_showDefaultCredentials)
+            {
+                <!-- Display default credentials for convenience -->
+                <div class="alert alert-info" role="alert">
+                    Username: <strong>@UserService.seedUsername</strong>
+                    <br />
+                    Password: <strong>@UserService.seedPassword</strong>
+                </div>
+            }
+
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control username" @bind="_username" placeholder="Username" />
+                <label for="floatingInput">Username</label>
+            </div>
+            <div class="form-floating mb-3">
+                <input type="password" class="form-control password" @bind="_password" placeholder="Password" />
+                <label for="floatingPassword">Password</label>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <!-- Display error message if login fails -->
+                <AlertMessage Type="danger" Message="@_errorMessage" />
+            }
+
+            <!-- Login button -->
+            <button class="w-100 btn btn-lg btn-primary black-btn" type="submit">
+                <span class="oi oi-account-login"></span> Login
+            </button>
+        </form>
+    </div>
+</div>
+
+
+@code {
+    [CascadingParameter]
+    private GlobalState _globalState { get; set; }
+    private bool _showDefaultCredentials { get; set; }
+    private string _username { get; set; }
+    private string _password { get; set; }
+    private string _errorMessage = "";
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+            // Attempt to login with default credentials
+            var user = UserService.Login(UserService.seedUsername, UserService.seedPassword);
+        }
+        catch { }
+
+        // Reset active user and error message
+        _globalState.ActiveUser = null;
+        _errorMessage = "";
+    }
+
+    // Handles Login and navigation after login
+    private void LoginHandler()
+    {
+        try
+        {
+            _errorMessage = "";
+            _globalState.ActiveUser = UserService.Login(_username, _password);
+
+            if (_globalState.ActiveUser != null)
+            {
+                // If login is successful, navigates to the default home page
+                NavManager.NavigateTo("/");
+            }
+        }
+        catch (Exception e)
+        {
+            _errorMessage = e.Message;
+            Console.WriteLine(e);
+        }
+    }
+}
